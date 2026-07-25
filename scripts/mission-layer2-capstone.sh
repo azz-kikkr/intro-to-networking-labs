@@ -111,7 +111,7 @@ doctor(){
 }
 
 ensure_state(){ mkdir -p "$STATE_DIR" "$LOG_DIR"; chmod 700 "$STATE_DIR"; }
-results_dir(){ [[ -f "$RESULTS_FILE" ]] && cat "$RESULTS_FILE" || true; }
+results_dir(){ if [[ -f "$RESULTS_FILE" ]]; then cat "$RESULTS_FILE"; fi; }
 create_results(){
   ensure_state
   local dir
@@ -189,7 +189,7 @@ add_host(){
 restore_costs(){
   local port
   for port in mls1-g-cec mls1-g-cee mls1-g-cwc mls1-g-cww mls1-g-ewe mls1-g-eww mls1-g-wee mls1-g-wew; do
-    exists "$port" && ip link set dev "$port" type bridge_slave cost 100 >/dev/null 2>&1 || true
+    if exists "$port"; then ip link set dev "$port" type bridge_slave cost 100 >/dev/null 2>&1; fi
   done
 }
 move_b(){
@@ -261,7 +261,7 @@ build(){
 
 blocked_count(){ bridge link show | grep -E 'master mls1-g-(core|east|west|edge)' | grep -Ec 'state (blocking|disabled)' || true; }
 scenario_active(){ [[ -s "$SCENARIO_FILE" ]]; }
-require_clean(){ scenario_active && die "A demonstration is active. Run fix first." || true; }
+require_clean(){ if scenario_active; then die "A demonstration is active. Run fix first."; fi; }
 record_scenario(){ ensure_state; printf '%s\n' "$1" > "$SCENARIO_FILE"; }
 
 verify(){
