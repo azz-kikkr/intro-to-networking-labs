@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-LAB="Mission Tech Lab 03"
+LAB="Mission Tech Lab 06"
 STATE_DIR="/run/mls1-lab03"
 SCENARIO_FILE="$STATE_DIR/scenario"
 RESULTS_FILE="$STATE_DIR/results-dir"
@@ -38,7 +38,7 @@ is_wsl2(){ grep -qi microsoft /proc/sys/kernel/osrelease 2>/dev/null || grep -qi
 banner(){ cat <<'EOF'
 
 MISSION TECH
-LAB 03: THE LAYER 2 GRAND FINALE
+LAB 06: THE LAYER 2 GRAND FINALE
 Eleven open-source switching investigations on one bounded Linux campus fabric
 
 EOF
@@ -46,7 +46,7 @@ EOF
 
 usage(){ cat <<'EOF'
 Usage:
-  sudo ./mission-layer2-grand-finale.sh <command>
+  sudo ./mission-layer2-capstone.sh <command>
 
 Start:
   install                  Install open-source dependencies
@@ -72,7 +72,7 @@ Grand finale investigations:
 Recovery:
   fix                      Repair the active stateful demonstration
   reset                    Rebuild the clean baseline
-  destroy                  Remove every Lab 03 object and tracked PID
+  destroy                  Remove every Lab 06 object and tracked PID
   help                     Show this help
 
 The lab uses Linux kernel STP, not RSTP. Traffic is bounded and remains inside
@@ -373,13 +373,13 @@ fix(){
 
 destroy(){
   need_root; local quiet="${1:-}" ns link br
-  [[ "$quiet" == --quiet ]] || log "Removing Lab 03"
+  [[ "$quiet" == --quiet ]] || log "Removing Lab 06"
   for file in app.pid ping.pid capture.pid capture-c.pid capture-app.pid; do kill_pidfile "$STATE_DIR/$file"; done
   for ns in "${NAMESPACES[@]}"; do ip netns del "$ns" >/dev/null 2>&1 || true; done
   for link in "${ALL_ROOT_LINKS[@]}"; do ip link del "$link" >/dev/null 2>&1 || true; done
   for br in "${BRIDGES[@]}"; do ip link del "$br" >/dev/null 2>&1 || true; done
   rm -rf "$STATE_DIR"
-  [[ "$quiet" == --quiet ]] || ok "All Lab 03 objects removed. Evidence remains under results/."
+  [[ "$quiet" == --quiet ]] || ok "All Lab 06 objects removed. Evidence remains under results/."
 }
 reset(){ need_root; destroy --quiet; build; }
 

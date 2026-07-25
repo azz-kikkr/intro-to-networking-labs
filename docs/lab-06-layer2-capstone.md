@@ -15,7 +15,7 @@ sudo ./scripts/mission-layer2-capstone.sh build
 
 ```bash
 sudo ./scripts/mission-layer2-capstone.sh verify
-sudo ./scripts/mission-layer2-capstone.sh report
+sudo ./scripts/mission-layer2-capstone.sh evidence
 ```
 
 Do not begin a failure investigation until the baseline passes. The report writes timestamped kernel and packet evidence under `results/`.
