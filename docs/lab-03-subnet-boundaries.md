@@ -1,36 +1,34 @@
-# Lab 03: Subnet Boundaries
+# Lab 03: Subnet boundaries
 
-Route between two adjacent /26 networks and prove the effect of removing one route.
+**Level:** L2 investigation<br>
+**Time:** 40 minutes<br>
+**Question:** What changes and what survives when a router forwards a packet?
 
-## Predict
+## Topology
 
-Write the expected kernel state and packet sequence before running the capture. A correct prediction is useful, but the result must be supported by evidence.
+```text
+left /26 -- router namespace -- right /26
+```
 
-## Build
+Before running, predict the destination MAC on each link and whether the source/destination IP addresses change.
 
 ```bash
 sudo ./scripts/mission-act1-labs.sh lab03 build
-```
-
-## Inspect
-
-```bash
 sudo ./scripts/mission-act1-labs.sh lab03 verify
-```
-
-## Capture
-
-```bash
 sudo ./scripts/mission-act1-labs.sh lab03 capture
 ```
 
-## Evidence checkpoint
+Compare `left-link.pcap` and `right-link.pcap` using `icmp`. Record Ethernet source and destination, IP source and destination, and TTL on the same echo request. The router should replace Layer 2 headers and decrement TTL while preserving the end-to-end IP addresses. The route files explain why forwarding was possible.
 
-Compare the frame on each router interface. The Ethernet envelope changes while the end-to-end IPv4 addresses remain stable.
+Expected result: two different Ethernet conversations carry one Layer 3 conversation. Ping confirms reachability but the paired captures prove header transformation.
 
-The timestamped result directory is the hand-in artifact. Keep the PCAP, readable packet summary and relevant kernel state together.
+Done when you can explain why a remote IP is sent to a local gateway MAC.
 
-## Cleanup
+## Study links
+
+- [RFC 1812: Requirements for IPv4 routers](https://datatracker.ietf.org/doc/html/rfc1812#section-5.2) walks through forwarding and next-hop selection.
+- [RFC 1812: Time to Live](https://datatracker.ietf.org/doc/html/rfc1812#section-5.3.1) explains the TTL change you compare across links.
+- [`ip-route(8)`](https://man7.org/linux/man-pages/man8/ip-route.8.html) is the reference for Linux route lookup and route types.
 
 ```bash
 sudo ./scripts/mission-act1-labs.sh lab03 destroy

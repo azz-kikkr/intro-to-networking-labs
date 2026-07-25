@@ -2,10 +2,10 @@
 set -Eeuo pipefail
 
 LAB_SUITE="Mission Tech Act 1 Labs"
+VERSION="1.0.0"
 STATE_ROOT="/run/mls1-act1"
 RESULTS_ROOT="${PWD}/results"
 CAPTURE_PID=""
-SERVER_PID=""
 
 log(){ printf '[%s] %s\n' "$LAB_SUITE" "$*"; }
 ok(){ printf '[PASS] %s\n' "$*"; }
@@ -48,8 +48,8 @@ install_packages(){
 doctor(){
   need_root
   local failed=0 tool test_ns="mls1-doctor"
-  for tool in ip bridge tcpdump curl python3 timeout; do
-    have "$tool" && ok "$tool" || { printf '[FAIL] Missing %s\n' "$tool" >&2; failed=1; }
+  for tool in ip bridge tcpdump curl python3 timeout awk grep date sha256sum sysctl; do
+    if have "$tool"; then ok "$tool"; else printf '[FAIL] Missing %s\n' "$tool" >&2; failed=1; fi
   done
   ip netns del "$test_ns" >/dev/null 2>&1 || true
   if ip netns add "$test_ns" >/dev/null 2>&1; then
@@ -57,6 +57,15 @@ doctor(){
     ok "Network namespace creation"
   else
     printf '[FAIL] Cannot create a network namespace\n' >&2
+    failed=1
+  fi
+  local test_bridge="mls1-doctor-br"
+  ip link del "$test_bridge" >/dev/null 2>&1 || true
+  if ip link add "$test_bridge" type bridge >/dev/null 2>&1; then
+    ip link del "$test_bridge"
+    ok "Linux bridge creation"
+  else
+    printf '[FAIL] Cannot create a Linux bridge\n' >&2
     failed=1
   fi
   (( failed == 0 )) || die "Environment check failed."
@@ -68,8 +77,27 @@ new_result(){
   stamp="$(date -u +'%Y%m%dT%H%M%SZ')"
   RESULT_DIR="${RESULTS_ROOT}/${stamp}-${lab}"
   mkdir -p "$RESULT_DIR"
-  chmod 700 "$RESULT_DIR"
+  chmod 755 "$RESULT_DIR"
   printf '%s\n' "$RESULT_DIR"
+}
+
+finish_result(){
+  local dir="$1" lab="$2" pcap
+  {
+    printf 'lab=%s\n' "$lab"
+    printf 'generated_utc=%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+    printf 'runner_version=%s\n' "$VERSION"
+    for pcap in "$dir"/*.pcap; do
+      [[ -f "$pcap" ]] || continue
+      [[ -s "$pcap" ]] || die "Empty PCAP: $pcap"
+      tcpdump -nn -r "$pcap" -c 1 >/dev/null 2>&1 || die "Unreadable PCAP: $pcap"
+      sha256sum "$pcap"
+    done
+  } >"$dir/manifest.txt"
+  if [[ -n ${SUDO_UID:-} && -n ${SUDO_GID:-} ]]; then
+    chown -R "$SUDO_UID:$SUDO_GID" "$dir"
+  fi
+  chmod -R u+rwX,go+rX "$dir"
 }
 
 kill_tracked(){
@@ -115,6 +143,7 @@ cleanup_lab01(){
   rm -rf "$STATE_ROOT/lab01"
 }
 build_lab01(){
+  doctor >/dev/null
   cleanup_lab01
   mkdir -p "$STATE_ROOT/lab01/www"
   printf '%s\n' '<!doctype html><title>Packet proof</title><h1>The browser asked. The server answered.</h1>' >"$STATE_ROOT/lab01/www/index.html"
@@ -142,6 +171,7 @@ capture_lab01(){
   timeout 8 tcpdump -U -ni mls1-l01-br -c 24 -w "$dir/browser-to-wire.pcap" 'arp or tcp port 8080' >"$dir/tcpdump.log" 2>&1 & CAPTURE_PID=$!
   sleep 0.4; request_lab01 >"$dir/http-response.txt"; wait "$CAPTURE_PID" || true
   tcpdump -nn -tttt -r "$dir/browser-to-wire.pcap" >"$dir/packets.txt" 2>/dev/null
+  finish_result "$dir" lab01
   printf '%s\n' "Result: $dir"; ok "Bounded HTTP PCAP saved"
 }
 evidence_lab01(){ verify_lab01; capture_lab01; }
@@ -151,6 +181,7 @@ cleanup_lab02(){
   ip link del mls1-l02-br >/dev/null 2>&1 || true; rm -rf "$STATE_ROOT/lab02"
 }
 build_lab02(){
+  doctor >/dev/null
   cleanup_lab02; mkdir -p "$STATE_ROOT/lab02"; ip link add mls1-l02-br type bridge; ip link set mls1-l02-br up
   add_bridge_host mls1-l02-a mls1-l02-ae mls1-l02-ab mls1-l02-br 192.0.2.10/26 02:00:00:02:00:10
   add_bridge_host mls1-l02-b mls1-l02-be mls1-l02-bb mls1-l02-br 192.0.2.20/26 02:00:00:02:00:20
@@ -170,6 +201,7 @@ capture_lab02(){
   sleep 0.4; ip netns exec mls1-l02-a ping -c 2 -W 1 192.0.2.20 >"$dir/ping.txt"; wait "$CAPTURE_PID" || true
   ip -n mls1-l02-a address >"$dir/address.txt"; ip -n mls1-l02-a route >"$dir/routes.txt"
   tcpdump -nn -vv -r "$dir/ipv4-header.pcap" >"$dir/packets.txt" 2>/dev/null
+  finish_result "$dir" lab02
   printf '%s\n' "Result: $dir"; ok "IPv4 header evidence saved"
 }
 evidence_lab02(){ verify_lab02; capture_lab02; }
@@ -179,6 +211,7 @@ cleanup_lab03(){
   ip link del mls1-l03-lh >/dev/null 2>&1 || true; ip link del mls1-l03-rh >/dev/null 2>&1 || true; rm -rf "$STATE_ROOT/lab03"
 }
 build_lab03(){
+  doctor >/dev/null
   cleanup_lab03; mkdir -p "$STATE_ROOT/lab03"
   for ns in mls1-l03-left mls1-l03-router mls1-l03-right; do ip netns add "$ns"; ip -n "$ns" link set lo up; done
   ip link add mls1-l03-lh type veth peer name mls1-l03-rl; ip link set mls1-l03-lh netns mls1-l03-left; ip link set mls1-l03-rl netns mls1-l03-router
@@ -213,6 +246,7 @@ capture_lab03(){
   ip -n mls1-l03-left route >"$dir/left-routes.txt"; ip -n mls1-l03-router route >"$dir/router-routes.txt"
   tcpdump -nn -e -r "$dir/left-link.pcap" >"$dir/left-packets.txt" 2>/dev/null
   tcpdump -nn -e -r "$dir/right-link.pcap" >"$dir/right-packets.txt" 2>/dev/null
+  finish_result "$dir" lab03
   printf '%s\n' "Result: $dir"; ok "Two-interface routing PCAP saved"
 }
 evidence_lab03(){ verify_lab03; capture_lab03; }
@@ -222,6 +256,7 @@ cleanup_lab04(){
   ip link del mls1-l04-br >/dev/null 2>&1 || true; rm -rf "$STATE_ROOT/lab04"
 }
 build_lab04(){
+  doctor >/dev/null
   cleanup_lab04; mkdir -p "$STATE_ROOT/lab04"; ip link add mls1-l04-br type bridge; ip link set mls1-l04-br up
   add_bridge_host mls1-l04-a mls1-l04-ae mls1-l04-ab mls1-l04-br 198.51.100.10/24 02:00:00:04:00:10
   add_bridge_host mls1-l04-b mls1-l04-be mls1-l04-bb mls1-l04-br 198.51.100.20/24 02:00:00:04:00:20
@@ -239,6 +274,7 @@ capture_lab04(){
   timeout 7 ip netns exec mls1-l04-witness tcpdump -U -eni eth0 -c 12 -w "$dir/ethernet-frames.pcap" >"$dir/tcpdump.log" 2>&1 & CAPTURE_PID=$!
   sleep 0.4; ip netns exec mls1-l04-a ping -c 2 -W 1 198.51.100.20 >/dev/null; broadcast_lab04; unknown_lab04; wait "$CAPTURE_PID" || true
   bridge fdb show br mls1-l04-br >"$dir/fdb.txt"; tcpdump -nn -e -XX -r "$dir/ethernet-frames.pcap" >"$dir/frames.txt" 2>/dev/null
+  finish_result "$dir" lab04
   printf '%s\n' "Result: $dir"; ok "Ethernet frame and witness evidence saved"
 }
 evidence_lab04(){ verify_lab04; capture_lab04; }
@@ -248,6 +284,7 @@ cleanup_lab05(){
   ip link del mls1-l05-br >/dev/null 2>&1 || true; rm -rf "$STATE_ROOT/lab05"
 }
 build_lab05(){
+  doctor >/dev/null
   cleanup_lab05; mkdir -p "$STATE_ROOT/lab05"; ip link add mls1-l05-br type bridge; ip link set mls1-l05-br up
   add_bridge_host mls1-l05-a mls1-l05-ae mls1-l05-ab mls1-l05-br 203.0.113.10/24 02:00:00:05:00:10
   add_bridge_host mls1-l05-b mls1-l05-be mls1-l05-bb mls1-l05-br 203.0.113.20/24 02:00:00:05:00:20
@@ -262,6 +299,7 @@ capture_lab05(){
   timeout 6 tcpdump -U -ni mls1-l05-br -c 2 -w "$dir/arp-request-reply.pcap" arp >"$dir/tcpdump.log" 2>&1 & CAPTURE_PID=$!
   sleep 0.4; resolve_lab05 >"$dir/neighbors.txt"; wait "$CAPTURE_PID" || true
   tcpdump -nn -e -vv -r "$dir/arp-request-reply.pcap" >"$dir/arp.txt" 2>/dev/null
+  finish_result "$dir" lab05
   printf '%s\n' "Result: $dir"; ok "ARP request and reply PCAP saved"
 }
 evidence_lab05(){ verify_lab05; capture_lab05; }
@@ -269,9 +307,11 @@ evidence_lab05(){ verify_lab05; capture_lab05; }
 destroy_selected(){ case "$1" in lab01)cleanup_lab01;;lab02)cleanup_lab02;;lab03)cleanup_lab03;;lab04)cleanup_lab04;;lab05)cleanup_lab05;;esac; ok "$1 resources removed"; }
 
 main(){
-  need_root
   local lab="${1:-}" command="${2:-help}"
+  case "$lab" in help|-h|--help) usage; return;; version|--version) printf '%s\n' "$VERSION"; return;; esac
   [[ "$lab" =~ ^lab0[1-5]$ ]] || { usage; exit 1; }
+  case "$command" in help|-h|--help) usage; return;; version|--version) printf '%s\n' "$VERSION"; return;; esac
+  need_root
   case "$command" in
     install) install_packages;; doctor) doctor;; destroy) destroy_selected "$lab";;
     build|verify|capture|evidence) "${command}_${lab}";;
@@ -283,7 +323,7 @@ main(){
     unknown) [[ "$lab" == lab04 ]] || die "unknown belongs to lab04"; unknown_lab04;;
     flush) [[ "$lab" == lab05 ]] || die "flush belongs to lab05"; flush_lab05;;
     resolve) [[ "$lab" == lab05 ]] || die "resolve belongs to lab05"; resolve_lab05;;
-    help|-h|--help) usage;; *) usage; exit 1;;
+    *) usage; exit 1;;
   esac
 }
 main "$@"

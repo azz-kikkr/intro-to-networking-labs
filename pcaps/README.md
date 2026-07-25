@@ -1,14 +1,13 @@
-# PCAP exercises
+# Packet captures
 
-The repository does not ship unexplained packet captures. Each lab generates a bounded PCAP from a known local topology and saves the exact stimulus beside it.
+The runners generate sanitized captures locally under timestamped `results/` directories. Lab addresses use the documentation ranges `192.0.2.0/24`, `198.51.100.0/24`, and `203.0.113.0/24`, or private lab-only ranges. MAC addresses are synthetic. No production traffic, credentials, cookies, or personal identifiers are captured.
 
-| Lab | Generated capture | What to prove |
-|---|---|---|
-| 01 | `browser-to-wire.pcap` | ARP precedes TCP, and TCP precedes HTTP |
-| 02 | `ipv4-header.pcap` | The source, destination and protocol match kernel state |
-| 03 | `left-link.pcap` and `right-link.pcap` | IP endpoints persist while Ethernet changes at the router |
-| 04 | `ethernet-frames.pcap` | A witness receives broadcast and unknown unicast |
-| 05 | `arp-request-reply.pcap` | Broadcast request becomes a unicast reply and cache entry |
-| 06 | scenario captures under `results/` | VLAN, FDB, STP and failover claims have packet or kernel evidence |
+Each evidence directory includes `manifest.txt` with SHA-256 hashes. Release assets may include a curated `act1-reference-pcaps` archive generated only from the isolated `mls1` topologies.
 
-Never upload a capture that may contain personal browsing traffic, cookies, tokens or private addresses. The supplied labs avoid that risk by generating traffic inside isolated namespaces.
+Open a capture with:
+
+```bash
+tcpdump -nn -e -r FILE.pcap
+```
+
+Or use Wireshark and the filters listed in each lab guide.

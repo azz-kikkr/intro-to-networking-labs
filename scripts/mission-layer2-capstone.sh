@@ -2,7 +2,8 @@
 set -Eeuo pipefail
 
 LAB="Mission Tech Lab 06"
-STATE_DIR="/run/mls1-lab03"
+VERSION="1.0.0"
+STATE_DIR="/run/mls1-lab06"
 SCENARIO_FILE="$STATE_DIR/scenario"
 RESULTS_FILE="$STATE_DIR/results-dir"
 LOG_DIR="$STATE_DIR/logs"
@@ -23,7 +24,7 @@ TRUNK_ROOTS=(mls1-g-cec mls1-g-cwc mls1-g-ewe mls1-g-wee)
 ACCESS_ROOTS=(mls1-g-ap mls1-g-bp mls1-g-cp mls1-g-xp)
 ALL_ROOT_LINKS=("${TRUNK_ROOTS[@]}" "${ACCESS_ROOTS[@]}")
 
-C_RESET='\033[0m'; C_BOLD='\033[1m'; C_PURPLE='\033[38;5;141m'
+C_RESET='\033[0m'; C_PURPLE='\033[38;5;141m'
 C_GREEN='\033[38;5;114m'; C_ORANGE='\033[38;5;208m'; C_RED='\033[38;5;203m'
 log(){ printf '%b[%s]%b %s\n' "$C_PURPLE" "$LAB" "$C_RESET" "$*"; }
 ok(){ printf '%b[PASS]%b %s\n' "$C_GREEN" "$C_RESET" "$*"; }
@@ -81,7 +82,7 @@ host route or host firewall is modified.
 EOF
 }
 
-required=(ip bridge brctl tcpdump python3 ping timeout grep sed)
+required=(ip bridge brctl tcpdump python3 ping timeout grep sed awk sha256sum)
 install_packages(){
   need_root; banner
   export DEBIAN_FRONTEND=noninteractive
@@ -100,26 +101,52 @@ bridge_capability_test(){
 doctor(){
   need_root; banner
   local failed=0 cmd
-  is_wsl2 && ok "WSL2 detected" || { fail "WSL2 was not detected"; failed=1; }
-  [[ "$(readlink -f "$0")" != /mnt/* ]] && ok "Script runs from the Linux filesystem" || { fail "Move the script from /mnt/c into your Ubuntu home directory"; failed=1; }
-  for cmd in "${required[@]}"; do have "$cmd" && ok "$cmd" || { fail "$cmd is missing"; failed=1; }; done
-  python3 -c 'import scapy.all' >/dev/null 2>&1 && ok "Scapy" || { fail "Python Scapy is missing"; failed=1; }
-  bridge_capability_test && ok "Linux bridge creation" || { fail "Cannot create a Linux bridge"; failed=1; }
+  if is_wsl2; then ok "WSL2 detected"; else fail "WSL2 was not detected"; failed=1; fi
+  if [[ "$(readlink -f "$0")" != /mnt/* ]]; then ok "Script runs from the Linux filesystem"; else fail "Move the script from /mnt/c into your Ubuntu home directory"; failed=1; fi
+  for cmd in "${required[@]}"; do if have "$cmd"; then ok "$cmd"; else fail "$cmd is missing"; failed=1; fi; done
+  if python3 -c 'import scapy.all' >/dev/null 2>&1; then ok "Scapy"; else fail "Python Scapy is missing"; failed=1; fi
+  if bridge_capability_test; then ok "Linux bridge creation"; else fail "Cannot create a Linux bridge"; failed=1; fi
   (( failed == 0 )) || die "Doctor checks failed"
   ok "Environment ready"
 }
 
 ensure_state(){ mkdir -p "$STATE_DIR" "$LOG_DIR"; chmod 700 "$STATE_DIR"; }
-results_dir(){ [[ -f "$RESULTS_FILE" ]] && cat "$RESULTS_FILE" || true; }
+results_dir(){ if [[ -f "$RESULTS_FILE" ]]; then cat "$RESULTS_FILE"; fi; }
 create_results(){
   ensure_state
-  local dir="$PWD/results/lab03-$(date +%Y%m%d-%H%M%S)"
+  local dir
+  dir="$PWD/results/lab06-$(date -u +%Y%m%dT%H%M%SZ)"
   mkdir -p "$dir"
   printf '%s\n' "$dir" > "$RESULTS_FILE"
   if [[ -n ${SUDO_UID:-} && -n ${SUDO_GID:-} ]]; then chown -R "$SUDO_UID:$SUDO_GID" "$PWD/results" 2>/dev/null || true; fi
   printf '%s\n' "$dir"
 }
 evidence(){ need_root; local dir; dir="$(results_dir)"; [[ -n "$dir" ]] || die "Build the lab first."; printf '%s\n' "$dir"; find "$dir" -maxdepth 1 -type f -printf '  %f\n' | sort; }
+finish_results(){
+  local dir pcap
+  dir="$(results_dir)"; [[ -d "$dir" ]] || die "Results directory is missing."
+  {
+    printf 'lab=lab06\n'
+    printf 'generated_utc=%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+    printf 'runner_version=%s\n' "$VERSION"
+    for pcap in "$dir"/*.pcap; do
+      [[ -f "$pcap" ]] || continue
+      [[ -s "$pcap" ]] || die "Empty PCAP: $pcap"
+      tcpdump -nn -r "$pcap" -c 1 >/dev/null 2>&1 || die "Unreadable PCAP: $pcap"
+      sha256sum "$pcap"
+    done
+  } >"$dir/manifest.txt"
+  if [[ -n ${SUDO_UID:-} && -n ${SUDO_GID:-} ]]; then chown -R "$SUDO_UID:$SUDO_GID" "$dir"; fi
+  chmod -R u+rwX,go+rX "$dir"
+}
+wait_for(){
+  local description="$1" attempts="$2"; shift 2
+  local i
+  for ((i=1; i<=attempts; i++)); do "$@" && return 0; sleep 1; done
+  die "Timed out waiting for $description"
+}
+stp_ready(){ (( $(blocked_count) >= 1 )); }
+reach_b(){ ip netns exec "$NS_A" ping -c 1 -W 1 10.110.3.12 >/dev/null 2>&1; }
 record_output(){ local name="$1"; shift; local dir; dir="$(results_dir)"; [[ -n "$dir" ]] || die "Results directory is missing."; "$@" | tee "$dir/$name"; }
 
 kill_pidfile(){
@@ -162,7 +189,7 @@ add_host(){
 restore_costs(){
   local port
   for port in mls1-g-cec mls1-g-cee mls1-g-cwc mls1-g-cww mls1-g-ewe mls1-g-eww mls1-g-wee mls1-g-wew; do
-    exists "$port" && ip link set dev "$port" type bridge_slave cost 100 >/dev/null 2>&1 || true
+    if exists "$port"; then ip link set dev "$port" type bridge_slave cost 100 >/dev/null 2>&1; fi
   done
 }
 move_b(){
@@ -224,7 +251,8 @@ build(){
   add_host "$NS_C" mls1-g-ce mls1-g-cp "$BR_EDGE" 110 10.110.3.13/24 02:00:00:00:31:0c
   add_host "$NS_APP" mls1-g-xe mls1-g-xp "$BR_WEST" 120 10.120.3.50/24 02:00:00:00:32:50
   start_app
-  sleep 8
+  wait_for "STP convergence" 15 stp_ready
+  wait_for "VLAN 110 reachability" 10 reach_b
   rm -f "$SCENARIO_FILE"
   topology | tee "$dir/topology.txt"
   ok "Lab built"
@@ -233,18 +261,18 @@ build(){
 
 blocked_count(){ bridge link show | grep -E 'master mls1-g-(core|east|west|edge)' | grep -Ec 'state (blocking|disabled)' || true; }
 scenario_active(){ [[ -s "$SCENARIO_FILE" ]]; }
-require_clean(){ scenario_active && die "A demonstration is active. Run fix first." || true; }
+require_clean(){ if scenario_active; then die "A demonstration is active. Run fix first."; fi; }
 record_scenario(){ ensure_state; printf '%s\n' "$1" > "$SCENARIO_FILE"; }
 
 verify(){
   need_root; local br failed=0
   for br in "${BRIDGES[@]}"; do exists "$br" || die "Missing bridge: $br"; done
   require_clean
-  (( $(blocked_count) >= 1 )) && ok "STP protects a redundant path" || { fail "No blocking port found"; failed=1; }
-  ip netns exec "$NS_A" ping -c 2 -W 2 10.110.3.12 >/dev/null && ok "Host A reaches Host B in VLAN 110" || { fail "A to B failed"; failed=1; }
-  ip netns exec "$NS_A" ping -c 2 -W 2 10.110.3.13 >/dev/null && ok "Host A reaches witness C in VLAN 110" || { fail "A to C failed"; failed=1; }
+  if (( $(blocked_count) >= 1 )); then ok "STP protects a redundant path"; else fail "No blocking port found"; failed=1; fi
+  if ip netns exec "$NS_A" ping -c 2 -W 2 10.110.3.12 >/dev/null; then ok "Host A reaches Host B in VLAN 110"; else fail "A to B failed"; failed=1; fi
+  if ip netns exec "$NS_A" ping -c 2 -W 2 10.110.3.13 >/dev/null; then ok "Host A reaches witness C in VLAN 110"; else fail "A to C failed"; failed=1; fi
   if ip netns exec "$NS_A" ping -c 1 -W 1 10.120.3.50 >/dev/null 2>&1; then fail "VLAN isolation failed"; failed=1; else ok "VLAN 110 remains isolated from VLAN 120"; fi
-  bridge vlan show dev mls1-g-bp | grep -Eq '110.*PVID.*Egress Untagged|110 PVID Egress Untagged' && ok "Host B access VLAN is 110" || { fail "Host B PVID is wrong"; failed=1; }
+  if bridge vlan show dev mls1-g-bp | grep -Eq '110.*PVID.*Egress Untagged|110 PVID Egress Untagged'; then ok "Host B access VLAN is 110"; else fail "Host B PVID is wrong"; failed=1; fi
   (( failed == 0 )) || return 1
   ok "Grand finale baseline verified"
 }
@@ -257,7 +285,7 @@ demo_root(){
   local dir; dir="$(results_dir)"
   log "Lowering West priority so it wins root election"
   ip link set "$BR_WEST" type bridge priority 0
-  sleep 8
+  wait_for "West root election" 15 bash -c 'brctl showstp mls1-g-west | grep -q "is root bridge"'
   show_roots | tee "$dir/01-root-election.txt"
   warn "West is now root. Run fix to restore Core."
 }
@@ -284,26 +312,30 @@ PY
 }
 demo_unknown(){
   need_root; require_clean; local dir pid; dir="$(results_dir)"
-  : > "$dir/05-unknown-unicast.txt"
-  ip netns exec "$NS_C" timeout 5 tcpdump -nn -e -l -c 1 -i eth0 'ether dst 02:00:00:de:ad:03' >"$dir/05-unknown-unicast.txt" 2>&1 & pid=$!
-  printf '%s\n' "$pid" > "$STATE_DIR/capture.pid"; sleep 1
+  ip netns exec "$NS_C" timeout 6 tcpdump -U -ni eth0 -c 1 -w "$dir/05-unknown-unicast.pcap" 'ether dst 02:00:00:de:ad:03' >"$dir/05-unknown-unicast.log" 2>&1 & pid=$!
+  printf '%s\n' "$pid" >"$STATE_DIR/capture.pid"
+  wait_for "unknown-unicast capture startup" 5 kill -0 "$pid"
   scapy_send "$NS_A" 02:00:00:de:ad:03 MISSION-UNKNOWN
   wait "$pid" || true; rm -f "$STATE_DIR/capture.pid"
+  tcpdump -nn -e -XX -r "$dir/05-unknown-unicast.pcap" >"$dir/05-unknown-unicast.txt" 2>/dev/null
   grep -q '02:00:00:de:ad:03' "$dir/05-unknown-unicast.txt" || die "Witness C did not capture the unknown unicast"
-  cat "$dir/05-unknown-unicast.txt"; ok "Unknown unicast flooded to witness C"
+  grep -qi '4d49 5353 494f 4e2d 554e 4b4e 4f57 4e' "$dir/05-unknown-unicast.txt" || die "Unknown-unicast payload was not captured"
+  cat "$dir/05-unknown-unicast.txt"; finish_results; ok "Unknown unicast flooded to witness C"
 }
 demo_broadcast(){
   need_root; require_clean; local dir pid_c pid_app; dir="$(results_dir)"
-  : > "$dir/06-broadcast-vlan110.txt"; : > "$dir/06-broadcast-vlan120.txt"
-  ip netns exec "$NS_C" timeout 5 tcpdump -nn -e -l -c 1 -i eth0 ether broadcast >"$dir/06-broadcast-vlan110.txt" 2>&1 & pid_c=$!
-  ip netns exec "$NS_APP" timeout 5 tcpdump -nn -e -l -c 1 -i eth0 ether broadcast >"$dir/06-broadcast-vlan120.txt" 2>&1 & pid_app=$!
-  printf '%s\n' "$pid_c" > "$STATE_DIR/capture-c.pid"; printf '%s\n' "$pid_app" > "$STATE_DIR/capture-app.pid"; sleep 1
+  ip netns exec "$NS_C" timeout 6 tcpdump -U -ni eth0 -c 1 -w "$dir/06-broadcast-vlan110.pcap" ether broadcast >"$dir/06-broadcast-vlan110.log" 2>&1 & pid_c=$!
+  ip netns exec "$NS_APP" timeout 4 tcpdump -U -ni eth0 -c 1 -w "$dir/06-broadcast-vlan120.pcap" ether broadcast >"$dir/06-broadcast-vlan120.log" 2>&1 & pid_app=$!
+  printf '%s\n' "$pid_c" >"$STATE_DIR/capture-c.pid"; printf '%s\n' "$pid_app" >"$STATE_DIR/capture-app.pid"
+  wait_for "VLAN 110 capture startup" 5 kill -0 "$pid_c"; wait_for "VLAN 120 capture startup" 5 kill -0 "$pid_app"
   scapy_send "$NS_A" ff:ff:ff:ff:ff:ff MISSION-BROADCAST
   wait "$pid_c" || true; wait "$pid_app" || true
   rm -f "$STATE_DIR/capture-c.pid" "$STATE_DIR/capture-app.pid"
-  grep -q 'MISSION-BROADCAST' "$dir/06-broadcast-vlan110.txt" || die "VLAN 110 witness missed the broadcast"
-  if grep -q 'MISSION-BROADCAST' "$dir/06-broadcast-vlan120.txt"; then die "Broadcast leaked into VLAN 120"; fi
-  cat "$dir/06-broadcast-vlan110.txt"; ok "Broadcast reached VLAN 110 witness and did not cross into VLAN 120"
+  tcpdump -nn -e -XX -r "$dir/06-broadcast-vlan110.pcap" >"$dir/06-broadcast-vlan110.txt" 2>/dev/null
+  tcpdump -nn -e -XX -r "$dir/06-broadcast-vlan120.pcap" >"$dir/06-broadcast-vlan120.txt" 2>/dev/null || true
+  grep -qi '4d49 5353 494f 4e2d 4252 4f41 4443 4153' "$dir/06-broadcast-vlan110.txt" || die "VLAN 110 witness missed the marked broadcast"
+  if grep -qi '4d49 5353 494f 4e2d 4252 4f41 4443 4153' "$dir/06-broadcast-vlan120.txt"; then die "Marked broadcast leaked into VLAN 120"; fi
+  cat "$dir/06-broadcast-vlan110.txt"; finish_results; ok "Broadcast reached VLAN 110 and did not cross into VLAN 120"
 }
 demo_pruning(){
   need_root; require_clean; record_scenario trunk-pruning
@@ -321,27 +353,36 @@ demo_pvid(){
 }
 demo_mac_move(){
   need_root; require_clean; record_scenario mac-move
-  local dir; dir="$(results_dir)"
-  move_b "$BR_EAST"; ip netns exec "$NS_B" ping -c 2 -W 2 10.110.3.11 >/dev/null || true
-  { ip -br link show mls1-g-bp; bridge fdb show br "$BR_EAST" | grep '02:00:00:00:31:0b' || true; } | tee "$dir/09-mac-move.txt"
+  local dir before after; dir="$(results_dir)"
+  ip netns exec "$NS_A" ping -c 1 -W 1 10.110.3.12 >/dev/null
+  before="$(bridge fdb show br "$BR_WEST" | grep '02:00:00:00:31:0b' || true)"
+  [[ -n "$before" ]] || die "Host B MAC was not learned on West before the move"
+  move_b "$BR_EAST"
+  wait_for "Host B reachability after MAC move" 10 reach_b
+  after="$(bridge fdb show br "$BR_EAST" | grep '02:00:00:00:31:0b' || true)"
+  [[ -n "$after" ]] || die "Host B MAC was not learned on East after the move"
+  { printf 'Before move on West:\n%s\n\nAfter move on East:\n%s\n' "$before" "$after"; ip -br link show mls1-g-bp; } | tee "$dir/09-mac-move.txt"
   warn "Host B moved without changing MAC or IP. Run fix."
 }
 demo_cost(){
   need_root; require_clean; record_scenario path-cost
-  local dir; dir="$(results_dir)"
-  log "Making the East-West path expensive"
-  ip link set dev mls1-g-ewe type bridge_slave cost 500
-  ip link set dev mls1-g-eww type bridge_slave cost 500
-  sleep 8
-  show_stp | tee "$dir/10-path-cost.txt"
-  warn "STP recalculated with new costs. Run fix."
+  local dir before after; dir="$(results_dir)"
+  before="$(show_stp | grep -E 'state (blocking|disabled)' | sort)"
+  log "Making the direct Core-West path expensive"
+  ip link set dev mls1-g-cwc type bridge_slave cost 500
+  ip link set dev mls1-g-cww type bridge_slave cost 500
+  wait_for "STP cost convergence" 15 stp_ready
+  after="$(show_stp | grep -E 'state (blocking|disabled)' | sort)"
+  [[ "$after" != "$before" ]] || die "Path-cost change did not move the blocked port"
+  { printf 'Before:\n%s\n\nAfter:\n%s\n' "$before" "$after"; show_stp; } | tee "$dir/10-path-cost.txt"
+  warn "STP moved the protected path after the cost change. Run fix."
 }
 demo_failover(){
   need_root; require_clean; record_scenario link-failover
   local dir; dir="$(results_dir)"
   ip netns exec "$NS_A" ping -D -i 0.5 -w 30 10.110.3.12 >"$dir/11-link-failover-ping.txt" 2>&1 &
   printf '%s\n' "$!" > "$STATE_DIR/ping.pid"; sleep 2
-  ip link set mls1-g-cwc down; sleep 8
+  ip link set mls1-g-cwc down; wait_for "alternate path reachability" 15 reach_b
   show_stp | tee "$dir/11-link-failover-stp.txt"
   warn "Core-West is down and the alternate path should forward. Run fix."
 }
@@ -368,7 +409,7 @@ fix(){
   }
   kill_pidfile "$STATE_DIR/ping.pid"; kill_pidfile "$STATE_DIR/capture.pid"
   kill_pidfile "$STATE_DIR/capture-c.pid"; kill_pidfile "$STATE_DIR/capture-app.pid"
-  rm -f "$SCENARIO_FILE"; sleep 8; ok "Baseline restored"
+  rm -f "$SCENARIO_FILE"; wait_for "baseline STP convergence" 15 stp_ready; wait_for "baseline reachability" 10 reach_b; finish_results; ok "Baseline restored"
 }
 
 destroy(){
@@ -385,6 +426,7 @@ reset(){ need_root; destroy --quiet; build; }
 
 main(){
   case "${1:-help}" in
+    version|--version) printf '%s\n' "$VERSION" ;;
     install) install_packages ;; doctor) doctor ;; build) build ;; verify) verify ;; topology) topology ;; evidence) evidence ;;
     demo) case "${2:-}" in
       root-election) demo_root ;; port-roles) demo_roles ;; vlan-boundaries) demo_vlans ;; fdb-learning) demo_fdb ;;
