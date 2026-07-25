@@ -1,0 +1,22 @@
+name: static checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax
+        run: bash -n scripts/*.sh
+      - name: Required safety markers
+        run: |
+          grep -q 'set -Eeuo pipefail' scripts/mission-act1-labs.sh
+          grep -q 'mls1' scripts/mission-act1-labs.sh
+          grep -q 'results' scripts/mission-act1-labs.sh
+          ! grep -R -nE 'pkill|killall|frrouting/.+:latest' scripts
+      - name: Documentation links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --no-progress --offline README.md docs/*.md pcaps/*.md
