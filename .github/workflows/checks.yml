@@ -1,22 +1,25 @@
-name: static checks
+name: Act 1 checks
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
 jobs:
-  validate:
+  static:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Shell syntax
-        run: bash -n scripts/*.sh
-      - name: Required safety markers
+      - name: Install validators
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Shell syntax and lint
         run: |
-          grep -q 'set -Eeuo pipefail' scripts/mission-act1-labs.sh
-          grep -q 'mls1' scripts/mission-act1-labs.sh
-          grep -q 'results' scripts/mission-act1-labs.sh
-          ! grep -R -nE 'pkill|killall|frrouting/.+:latest' scripts
+          bash -n scripts/*.sh tests/*.sh
+          shellcheck -x scripts/*.sh tests/*.sh
+      - name: Safety and learning acceptance
+        run: bash tests/acceptance.sh
       - name: Documentation links
         uses: lycheeverse/lychee-action@v2
         with:
-          args: --no-progress --offline README.md docs/*.md pcaps/*.md
+          args: --no-progress README.md docs/*.md pcaps/*.md
