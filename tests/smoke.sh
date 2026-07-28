@@ -53,18 +53,44 @@ skip(){ results+=("SKIP  $1"); skipped=$((skipped+1)); }
 if [[ "$scope" == all || "$scope" == act1 ]]; then
   for lab in lab01 lab02 lab03 lab04 lab05; do
     if run "$lab build" bash "$act1" "$lab" build; then
-      run "$lab verify"  bash "$act1" "$lab" verify
-      run "$lab capture" bash "$act1" "$lab" capture
+      run "$lab verify" bash "$act1" "$lab" verify
+      case "$lab" in
+        lab01)
+          run "$lab request" bash "$act1" "$lab" request
+          run "$lab capture" bash "$act1" "$lab" capture
+          ;;
+        lab02)
+          run "$lab inspect" bash "$act1" "$lab" inspect
+          run "$lab capture" bash "$act1" "$lab" capture
+          ;;
+        lab03)
+          run "$lab capture" bash "$act1" "$lab" capture
+          run "$lab break" bash "$act1" "$lab" break
+          run "$lab fix" bash "$act1" "$lab" fix
+          run "$lab evidence" bash "$act1" "$lab" evidence
+          ;;
+        lab04)
+          run "$lab broadcast" bash "$act1" "$lab" broadcast
+          run "$lab unknown" bash "$act1" "$lab" unknown
+          run "$lab capture" bash "$act1" "$lab" capture
+          ;;
+        lab05)
+          run "$lab flush" bash "$act1" "$lab" flush
+          run "$lab resolve" bash "$act1" "$lab" resolve
+          run "$lab capture" bash "$act1" "$lab" capture
+          ;;
+      esac
     else
-      skip "$lab verify"; skip "$lab capture"
+      skip "$lab documented commands"
     fi
-    bash "$act1" "$lab" destroy >/dev/null 2>&1 || true
+    run "$lab destroy" bash "$act1" "$lab" destroy
   done
 fi
 
 if [[ "$scope" == all || "$scope" == capstone ]]; then
   if run "lab06 doctor" bash "$cap" doctor && run "lab06 build" bash "$cap" build; then
     run "lab06 verify" bash "$cap" verify
+    run "lab06 topology" bash "$cap" topology
     for demo in port-roles vlan-boundaries fdb-learning unknown-unicast broadcast-domain; do
       run "lab06 demo $demo" bash "$cap" demo "$demo"
     done
@@ -74,6 +100,7 @@ if [[ "$scope" == all || "$scope" == capstone ]]; then
       run "lab06 fix after $demo" bash "$cap" fix
     done
     run "lab06 verify after all demos" bash "$cap" verify
+    run "lab06 evidence" bash "$cap" evidence
   else
     for demo in port-roles vlan-boundaries fdb-learning unknown-unicast broadcast-domain \
                 root-election trunk-pruning pvid-mismatch mac-move path-cost link-failover; do
@@ -81,7 +108,7 @@ if [[ "$scope" == all || "$scope" == capstone ]]; then
     done
     skip "lab06 verify"
   fi
-  bash "$cap" destroy >/dev/null 2>&1 || true
+  run "lab06 destroy" bash "$cap" destroy
 fi
 
 cleanup_all
