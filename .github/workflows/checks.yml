@@ -32,10 +32,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Install lab dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y iproute2 tcpdump curl python3 python3-scapy iputils-ping traceroute
       - name: Neutralise bridge netfilter on the disposable runner
         run: |
           sudo systemctl stop docker.socket docker.service || true
