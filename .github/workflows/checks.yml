@@ -10,7 +10,7 @@ jobs:
   static:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install validators
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: Shell syntax and lint
@@ -20,7 +20,7 @@ jobs:
       - name: Safety and learning acceptance
         run: bash tests/acceptance.sh
       - name: Documentation links
-        uses: lycheeverse/lychee-action@v2
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
           args: --no-progress README.md docs/*.md pcaps/*.md
 
@@ -31,7 +31,7 @@ jobs:
         os: [ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install lab dependencies
         run: |
           sudo apt-get update
@@ -70,7 +70,7 @@ jobs:
           } | tee runtime-failure-state.txt
       - name: Upload evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: lab-evidence-${{ matrix.os }}
           path: |
