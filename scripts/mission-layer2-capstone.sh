@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 LAB="Mission Tech Lab 06"
-VERSION="1.1.3"
+VERSION="1.1.4"
 STATE_DIR="/run/mls1-lab06"
 SCENARIO_FILE="$STATE_DIR/scenario"
 RESULTS_FILE="$STATE_DIR/results-dir"

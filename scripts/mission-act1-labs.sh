@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 LAB_SUITE="Mission Tech Act 1 Labs"
-VERSION="1.1.3"
+VERSION="1.1.4"
 STATE_ROOT="/run/mls1-act1"
 RESULTS_ROOT="${PWD}/results"
 CAPTURE_PID=""

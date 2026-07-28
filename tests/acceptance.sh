@@ -26,8 +26,9 @@ fi
 for lab in 01 02 03 04 05 06; do
   grep -qi 'predict' "$root/docs/lab-$lab"-*.md || fail "Lab $lab lacks a prediction prompt"
 done
-"$root/scripts/mission-act1-labs.sh" --version | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'
-"$root/scripts/mission-layer2-capstone.sh" --version | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'
+release_version="$(cat "$root/VERSION")"
+[[ "$("$root/scripts/mission-act1-labs.sh" --version)" == "$release_version" ]] || fail 'Act 1 runner version does not match VERSION'
+[[ "$("$root/scripts/mission-layer2-capstone.sh" --version)" == "$release_version" ]] || fail 'Capstone runner version does not match VERSION'
 # Bridge timers must be expressed in hundredths of a second.
 grep -q 'forward_delay 400' "$root/scripts/mission-layer2-capstone.sh" || fail 'Capstone bridge timers are not in centiseconds'
 grep -q 'brctl' "$root/scripts/mission-layer2-capstone.sh" && fail 'Capstone still depends on deprecated bridge-utils'
