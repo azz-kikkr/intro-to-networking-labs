@@ -25,7 +25,11 @@ jobs:
           args: --no-progress README.md docs/*.md pcaps/*.md
 
   runtime:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - name: Install lab dependencies
@@ -35,15 +39,41 @@ jobs:
       - name: Neutralise bridge netfilter on the disposable runner
         run: |
           sudo systemctl stop docker.socket docker.service || true
-          # Stopping the daemon does not undo the FORWARD policy or unload the module.
-          sudo iptables -P FORWARD ACCEPT || true
-          sudo modprobe -r br_netfilter || true
+          # The hosted runner includes Docker. Stopping it does not undo the
+          # bridge netfilter hooks that can consume frames before Linux bridge
+          # forwarding. This runner is disposable; learner hosts are never
+          # modified this way.
+          sudo modprobe br_netfilter
+          sudo sysctl -w net.bridge.bridge-nf-call-iptables=0
+          sudo sysctl -w net.bridge.bridge-nf-call-ip6tables=0
+          sudo sysctl -w net.bridge.bridge-nf-call-arptables=0
       - name: Run every lab for real
         run: sudo bash tests/smoke.sh
+      - name: Capture failure state
+        if: failure()
+        run: |
+          {
+            echo '### namespaces'
+            sudo ip netns list
+            echo '### mls1 links'
+            ip -d -o link show | grep mls1 || true
+            echo '### bridge links'
+            sudo bridge -d link show
+            echo '### bridge VLANs'
+            sudo bridge vlan show
+            echo '### bridge FDB'
+            sudo bridge fdb show
+            echo '### bridge netfilter'
+            sudo sysctl net.bridge.bridge-nf-call-iptables \
+              net.bridge.bridge-nf-call-ip6tables \
+              net.bridge.bridge-nf-call-arptables
+          } | tee runtime-failure-state.txt
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: lab-evidence
-          path: results/
+          name: lab-evidence-${{ matrix.os }}
+          path: |
+            results/
+            runtime-failure-state.txt
           if-no-files-found: warn
