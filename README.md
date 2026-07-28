@@ -83,7 +83,7 @@ bridge fdb show
 
 # Read a capture without a GUI.
 tcpdump -nn -e -r results/path/to/capture.pcap
-tshark -r results/path/to/capture.pcap -Y 'tcp.flags.syn == 1'
+tcpdump -nn -r results/path/to/capture.pcap 'tcp[tcpflags] & tcp-syn != 0'
 ```
 
 Capture filters and Wireshark display filters are different languages. Capture broadly enough to preserve evidence, then narrow the view during analysis.
