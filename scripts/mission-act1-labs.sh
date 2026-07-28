@@ -307,7 +307,7 @@ build_lab04(){
 }
 verify_lab04(){ exists_link mls1-l04-br || die "Run lab04 build first."; bridge link show master mls1-l04-br; bridge fdb show br mls1-l04-br; ok "Bridge ports and FDB inspected"; }
 broadcast_lab04(){ ip netns exec mls1-l04-a ping -b -c 1 -W 1 198.51.100.255 >/dev/null 2>&1 || true; }
-unknown_lab04(){ ip netns exec mls1-l04-a python3 -c "import socket; s=socket.socket(socket.AF_PACKET,socket.SOCK_RAW); s.bind(('eth0',0)); s.send(bytes.fromhex('02000004ffff02000004001088b5')+b'MISSION-L2-UNKNOWN')"; }
+unknown_lab04(){ ip netns exec mls1-l04-a python3 -c "import socket,time; s=socket.socket(socket.AF_PACKET,socket.SOCK_RAW); s.bind(('eth0',0)); frame=bytes.fromhex('02000004ffff02000004001088b5')+b'MISSION-L2-UNKNOWN'; [s.send(frame) or time.sleep(0.1) for _ in range(3)]"; }
 capture_lab04(){
   local dir; dir="$(new_result lab04)"
   ip -n mls1-l04-a neigh flush dev eth0 >/dev/null 2>&1 || true

@@ -393,7 +393,7 @@ scapy_send(){
   ip netns exec "$ns" python3 - "$dst" "$payload" <<'PY'
 import sys
 from scapy.all import Ether, Raw, sendp
-sendp(Ether(dst=sys.argv[1])/Raw(load=sys.argv[2].encode()), iface="eth0", count=1, verbose=False)
+sendp(Ether(dst=sys.argv[1])/Raw(load=sys.argv[2].encode()), iface="eth0", count=3, inter=0.1, verbose=False)
 PY
 }
 demo_unknown(){
