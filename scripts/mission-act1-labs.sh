@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 LAB_SUITE="Mission Tech Act 1 Labs"
-VERSION="1.0.0"
+VERSION="1.1.3"
 STATE_ROOT="/run/mls1-act1"
 RESULTS_ROOT="${PWD}/results"
 CAPTURE_PID=""
@@ -68,6 +68,14 @@ doctor(){
     printf '[FAIL] Cannot create a Linux bridge\n' >&2
     failed=1
   fi
+  local nf
+  for nf in /proc/sys/net/bridge/bridge-nf-call-iptables /proc/sys/net/bridge/bridge-nf-call-ip6tables; do
+    [[ -r "$nf" ]] || continue
+    if [[ "$(cat "$nf")" == "1" ]]; then
+      printf '[CHECK] br_netfilter sends bridged traffic to iptables. A Docker FORWARD DROP policy can silently drop lab frames.\n'
+      break
+    fi
+  done
   (( failed == 0 )) || die "Environment check failed."
   ok "Environment ready"
 }
@@ -111,6 +119,36 @@ kill_tracked(){
   rm -f "$file"
 }
 
+bridge_ports(){ bridge link show | awk -v br="$1" '$0 ~ ("master " br " ") {sub(/@.*/,"",$2); sub(/:$/,"",$2); print $2}'; }
+# "bridge fdb flush br BR" is rejected by the parser and bare "dev PORT" returns
+# Operation not supported. "dev PORT master" is the form that works.
+fdb_flush_bridge(){
+  local br="$1" port failed=0
+  while IFS= read -r port; do
+    [[ -n "$port" ]] || continue
+    # Modern path. "br BR" is rejected by the parser and bare "dev PORT"
+    # defaults to self, which a bridge port does not implement.
+    if bridge fdb flush dev "$port" master dynamic >/dev/null 2>&1; then continue; fi
+    # iproute2 before 5.19 has no flush verb at all. This bridge_slave flag is
+    # much older and clears every dynamic entry on the port in all VLANs.
+    ip link set dev "$port" type bridge_slave fdb_flush >/dev/null 2>&1 || failed=1
+  done < <(bridge_ports "$br")
+  (( failed == 0 )) || die "Could not flush dynamic FDB entries on $br"
+  if bridge fdb show br "$br" dynamic 2>/dev/null | grep -q .; then
+    die "Dynamic FDB entries remain on $br after flush"
+  fi
+}
+# Do not race tcpdump with a fixed sleep. Wait until it says it is listening.
+wait_capture(){
+  local logfile="$1" attempts=50
+  while (( attempts > 0 )); do
+    grep -q 'listening on' "$logfile" 2>/dev/null && return 0
+    attempts=$((attempts-1)); sleep 0.2
+  done
+  die "tcpdump did not start listening: $logfile"
+}
+assert_in_pcap(){ grep -aq "$2" "$1" || die "$3"; }
+
 wait_http(){
   local ns="$1" url="$2" attempts=20
   while (( attempts > 0 )); do
@@ -132,7 +170,7 @@ add_bridge_host(){
   ip -n "$ns" link set eth0 address "$mac"
   ip -n "$ns" link set eth0 up
   ip -n "$ns" address add "$address" dev eth0
-  ip netns exec "$ns" sysctl -qw net.ipv6.conf.all.disable_ipv6=1
+  ip netns exec "$ns" sysctl -qw net.ipv6.conf.all.disable_ipv6=1 >/dev/null 2>&1 || true
 }
 
 cleanup_lab01(){
@@ -158,7 +196,9 @@ build_lab01(){
 request_lab01(){ ip netns exec mls1-l01-client curl -sS -D - --max-time 3 http://10.1.1.20:8080/; }
 verify_lab01(){
   exists_ns mls1-l01-client || die "Run lab01 build first."
-  request_lab01 | grep -q '200 OK' || die "Expected HTTP 200 response."
+  local response
+  response="$(request_lab01)" || die "The HTTP request itself failed."
+  grep -q '200 OK' <<<"$response" || die "Expected HTTP 200 response."
   ip -n mls1-l01-client route show
   bridge fdb show br mls1-l01-br
   ok "HTTP, route and bridge evidence agree"
@@ -167,9 +207,10 @@ capture_lab01(){
   local dir; dir="$(new_result lab01)"
   ip -n mls1-l01-client neigh flush dev eth0 >/dev/null 2>&1 || true
   ip -n mls1-l01-server neigh flush dev eth0 >/dev/null 2>&1 || true
-  bridge fdb flush br mls1-l01-br >/dev/null 2>&1 || true
+  fdb_flush_bridge mls1-l01-br
   timeout 8 tcpdump -U -ni mls1-l01-br -c 24 -w "$dir/browser-to-wire.pcap" 'arp or tcp port 8080' >"$dir/tcpdump.log" 2>&1 & CAPTURE_PID=$!
-  sleep 0.4; request_lab01 >"$dir/http-response.txt"; wait "$CAPTURE_PID" || true
+  wait_capture "$dir/tcpdump.log"; request_lab01 >"$dir/http-response.txt"; wait "$CAPTURE_PID" || true
+  assert_in_pcap "$dir/browser-to-wire.pcap" 'HTTP/1.0 200' "No HTTP 200 response in the capture"
   tcpdump -nn -tttt -r "$dir/browser-to-wire.pcap" >"$dir/packets.txt" 2>/dev/null
   finish_result "$dir" lab01
   printf '%s\n' "Result: $dir"; ok "Bounded HTTP PCAP saved"
@@ -198,7 +239,7 @@ capture_lab02(){
   ip -n mls1-l02-a neigh flush dev eth0 >/dev/null 2>&1 || true
   ip -n mls1-l02-b neigh flush dev eth0 >/dev/null 2>&1 || true
   timeout 6 tcpdump -U -ni mls1-l02-br -c 10 -w "$dir/ipv4-header.pcap" 'arp or icmp' >"$dir/tcpdump.log" 2>&1 & CAPTURE_PID=$!
-  sleep 0.4; ip netns exec mls1-l02-a ping -c 2 -W 1 192.0.2.20 >"$dir/ping.txt"; wait "$CAPTURE_PID" || true
+  wait_capture "$dir/tcpdump.log"; ip netns exec mls1-l02-a ping -c 2 -W 1 192.0.2.20 >"$dir/ping.txt"; wait "$CAPTURE_PID" || true
   ip -n mls1-l02-a address >"$dir/address.txt"; ip -n mls1-l02-a route >"$dir/routes.txt"
   tcpdump -nn -vv -r "$dir/ipv4-header.pcap" >"$dir/packets.txt" 2>/dev/null
   finish_result "$dir" lab02
@@ -242,7 +283,8 @@ capture_lab03(){
   ip -n mls1-l03-router neigh flush dev right0 >/dev/null 2>&1 || true
   timeout 7 ip netns exec mls1-l03-router tcpdump -U -ni left0 -c 8 -w "$dir/left-link.pcap" 'arp or icmp' >"$dir/left-tcpdump.log" 2>&1 & local left_pid=$!
   timeout 7 ip netns exec mls1-l03-router tcpdump -U -ni right0 -c 8 -w "$dir/right-link.pcap" 'arp or icmp' >"$dir/right-tcpdump.log" 2>&1 & local right_pid=$!
-  sleep 0.4; ip netns exec mls1-l03-left ping -c 2 -W 1 192.0.2.70 >"$dir/ping.txt"; wait "$left_pid" || true; wait "$right_pid" || true
+  wait_capture "$dir/left-tcpdump.log"; wait_capture "$dir/right-tcpdump.log"
+  ip netns exec mls1-l03-left ping -c 2 -W 1 192.0.2.70 >"$dir/ping.txt"; wait "$left_pid" || true; wait "$right_pid" || true
   ip -n mls1-l03-left route >"$dir/left-routes.txt"; ip -n mls1-l03-router route >"$dir/router-routes.txt"
   tcpdump -nn -e -r "$dir/left-link.pcap" >"$dir/left-packets.txt" 2>/dev/null
   tcpdump -nn -e -r "$dir/right-link.pcap" >"$dir/right-packets.txt" 2>/dev/null
@@ -270,10 +312,15 @@ capture_lab04(){
   local dir; dir="$(new_result lab04)"
   ip -n mls1-l04-a neigh flush dev eth0 >/dev/null 2>&1 || true
   ip -n mls1-l04-b neigh flush dev eth0 >/dev/null 2>&1 || true
-  bridge fdb flush br mls1-l04-br >/dev/null 2>&1 || true
+  fdb_flush_bridge mls1-l04-br
   timeout 7 ip netns exec mls1-l04-witness tcpdump -U -eni eth0 -c 12 -w "$dir/ethernet-frames.pcap" >"$dir/tcpdump.log" 2>&1 & CAPTURE_PID=$!
-  sleep 0.4; ip netns exec mls1-l04-a ping -c 2 -W 1 198.51.100.20 >/dev/null; broadcast_lab04; unknown_lab04; wait "$CAPTURE_PID" || true
+  wait_capture "$dir/tcpdump.log"
+  ip netns exec mls1-l04-a ping -c 2 -W 1 198.51.100.20 >/dev/null; broadcast_lab04; unknown_lab04; wait "$CAPTURE_PID" || true
   bridge fdb show br mls1-l04-br >"$dir/fdb.txt"; tcpdump -nn -e -XX -r "$dir/ethernet-frames.pcap" >"$dir/frames.txt" 2>/dev/null
+  # The witness must actually have seen the flood. Without this the lab prints
+  # PASS for a capture that proves nothing.
+  assert_in_pcap "$dir/ethernet-frames.pcap" 'MISSION-L2-UNKNOWN' "The witness did not receive the marked unknown-unicast frame"
+  grep -q 'ff:ff:ff:ff:ff:ff' "$dir/frames.txt" || die "The witness did not receive a broadcast frame"
   finish_result "$dir" lab04
   printf '%s\n' "Result: $dir"; ok "Ethernet frame and witness evidence saved"
 }
@@ -293,12 +340,22 @@ build_lab05(){
 }
 flush_lab05(){ ip -n mls1-l05-a neigh flush dev eth0 >/dev/null 2>&1 || true; ip -n mls1-l05-a neigh show; ok "Neighbor cache flushed"; }
 resolve_lab05(){ ip netns exec mls1-l05-a ping -c 1 -W 1 203.0.113.20 >/dev/null; ip -n mls1-l05-a neigh show dev eth0; }
-verify_lab05(){ exists_ns mls1-l05-a || die "Run lab05 build first."; flush_lab05; resolve_lab05 | grep -q '02:00:00:05:00:20' || die "Expected MAC was not learned."; resolve_lab05; ok "ARP resolved the expected IP-to-MAC mapping"; }
+verify_lab05(){
+  exists_ns mls1-l05-a || die "Run lab05 build first."
+  flush_lab05
+  local neighbors
+  neighbors="$(resolve_lab05)" || die "ARP resolution failed."
+  grep -q '02:00:00:05:00:20' <<<"$neighbors" || die "Expected MAC was not learned."
+  printf '%s\n' "$neighbors"
+  ok "ARP resolved the expected IP-to-MAC mapping"
+}
 capture_lab05(){
   local dir; dir="$(new_result lab05)"; flush_lab05
   timeout 6 tcpdump -U -ni mls1-l05-br -c 2 -w "$dir/arp-request-reply.pcap" arp >"$dir/tcpdump.log" 2>&1 & CAPTURE_PID=$!
-  sleep 0.4; resolve_lab05 >"$dir/neighbors.txt"; wait "$CAPTURE_PID" || true
+  wait_capture "$dir/tcpdump.log"; resolve_lab05 >"$dir/neighbors.txt"; wait "$CAPTURE_PID" || true
   tcpdump -nn -e -vv -r "$dir/arp-request-reply.pcap" >"$dir/arp.txt" 2>/dev/null
+  grep -q 'Request who-has 203.0.113.20' "$dir/arp.txt" || die "No ARP request for 203.0.113.20 in the capture"
+  grep -q 'Reply 203.0.113.20 is-at 02:00:00:05:00:20' "$dir/arp.txt" || die "No matching ARP reply in the capture"
   finish_result "$dir" lab05
   printf '%s\n' "Result: $dir"; ok "ARP request and reply PCAP saved"
 }

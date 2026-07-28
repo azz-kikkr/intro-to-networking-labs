@@ -20,7 +20,7 @@ sudo ./scripts/mission-act1-labs.sh lab04 verify
 sudo ./scripts/mission-act1-labs.sh lab04 capture
 ```
 
-Open `ethernet-frames.pcap`. Filters: `eth.dst == ff:ff:ff:ff:ff:ff` for broadcast and `eth.dst == 02:00:00:de:ad:04` for the marked unknown destination. Inspect destination MAC, source MAC, EtherType or length, and payload bytes. Compare with `fdb.txt`.
+Open `ethernet-frames.pcap`. Filters: `eth.dst == ff:ff:ff:ff:ff:ff` for broadcast and `eth.dst == 02:00:00:04:ff:ff` for the marked unknown destination. Inspect destination MAC, source MAC, EtherType or length, and payload bytes. Compare with `fdb.txt`.
 
 Expected result: the witness receives broadcast and an unknown destination because the bridge floods them. A learned unicast is forwarded only toward the learned port.
 

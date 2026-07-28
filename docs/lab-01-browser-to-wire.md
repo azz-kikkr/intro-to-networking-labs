@@ -22,7 +22,7 @@ sudo ./scripts/mission-act1-labs.sh lab01 verify
 sudo ./scripts/mission-act1-labs.sh lab01 capture
 ```
 
-Expected success includes `[PASS] HTTP response verified` and a nonempty `browser-to-wire.pcap`. Open the generated `http-response.txt`, `packets.txt`, and PCAP side by side.
+Expected success includes `[PASS] HTTP, route and bridge evidence agree` and a nonempty `browser-to-wire.pcap`. Open the generated `http-response.txt`, `packets.txt`, and PCAP side by side.
 
 Wireshark filters:
 
