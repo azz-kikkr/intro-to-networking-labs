@@ -313,7 +313,7 @@ capture_lab04(){
   ip -n mls1-l04-a neigh flush dev eth0 >/dev/null 2>&1 || true
   ip -n mls1-l04-b neigh flush dev eth0 >/dev/null 2>&1 || true
   fdb_flush_bridge mls1-l04-br
-  timeout 7 ip netns exec mls1-l04-witness tcpdump -U -eni eth0 -c 12 -w "$dir/ethernet-frames.pcap" >"$dir/tcpdump.log" 2>&1 & CAPTURE_PID=$!
+  timeout 7 ip netns exec mls1-l04-witness tcpdump -U -eni eth0 -c 32 -w "$dir/ethernet-frames.pcap" '(arp or icmp) or (ether proto 0x88b5)' >"$dir/tcpdump.log" 2>&1 & CAPTURE_PID=$!
   wait_capture "$dir/tcpdump.log"
   ip netns exec mls1-l04-a ping -c 2 -W 1 198.51.100.20 >/dev/null; broadcast_lab04; unknown_lab04; wait "$CAPTURE_PID" || true
   bridge fdb show br mls1-l04-br >"$dir/fdb.txt"; tcpdump -nn -e -XX -r "$dir/ethernet-frames.pcap" >"$dir/frames.txt" 2>/dev/null

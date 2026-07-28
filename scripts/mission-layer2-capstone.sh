@@ -398,7 +398,7 @@ PY
 }
 demo_unknown(){
   need_root; require_clean; local dir pid; dir="$(results_dir)"
-  ip netns exec "$NS_C" timeout 6 tcpdump -U -ni eth0 -c 1 -w "$dir/05-unknown-unicast.pcap" 'ether dst 02:00:00:de:ad:03' >"$dir/05-unknown-unicast.log" 2>&1 & pid=$!
+  ip netns exec "$NS_C" timeout 6 tcpdump -U -ni eth0 -c 1 -w "$dir/05-unknown-unicast.pcap" 'ether dst 02:00:00:de:ad:03 and ether proto 0x9000' >"$dir/05-unknown-unicast.log" 2>&1 & pid=$!
   printf '%s\n' "$pid" >"$STATE_DIR/capture.pid"
   wait_for "unknown-unicast capture startup" 10 capture_ready "$dir/05-unknown-unicast.log"
   scapy_send "$NS_A" 02:00:00:de:ad:03 MISSION-UNKNOWN
@@ -410,8 +410,8 @@ demo_unknown(){
 }
 demo_broadcast(){
   need_root; require_clean; local dir pid_c pid_app; dir="$(results_dir)"
-  ip netns exec "$NS_C" timeout 6 tcpdump -U -ni eth0 -c 1 -w "$dir/06-broadcast-vlan110.pcap" ether broadcast >"$dir/06-broadcast-vlan110.log" 2>&1 & pid_c=$!
-  ip netns exec "$NS_APP" timeout 4 tcpdump -U -ni eth0 -c 1 -w "$dir/06-broadcast-vlan120.pcap" ether broadcast >"$dir/06-broadcast-vlan120.log" 2>&1 & pid_app=$!
+  ip netns exec "$NS_C" timeout 6 tcpdump -U -ni eth0 -c 1 -w "$dir/06-broadcast-vlan110.pcap" 'ether broadcast and ether proto 0x9000' >"$dir/06-broadcast-vlan110.log" 2>&1 & pid_c=$!
+  ip netns exec "$NS_APP" timeout 4 tcpdump -U -ni eth0 -c 1 -w "$dir/06-broadcast-vlan120.pcap" 'ether broadcast and ether proto 0x9000' >"$dir/06-broadcast-vlan120.log" 2>&1 & pid_app=$!
   printf '%s\n' "$pid_c" >"$STATE_DIR/capture-c.pid"; printf '%s\n' "$pid_app" >"$STATE_DIR/capture-app.pid"
   wait_for "VLAN 110 capture startup" 10 capture_ready "$dir/06-broadcast-vlan110.log"
   wait_for "VLAN 120 capture startup" 10 capture_ready "$dir/06-broadcast-vlan120.log"
