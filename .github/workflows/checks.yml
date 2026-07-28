@@ -47,7 +47,11 @@ jobs:
           sudo sysctl -w net.bridge.bridge-nf-call-iptables=0
           sudo sysctl -w net.bridge.bridge-nf-call-ip6tables=0
           sudo sysctl -w net.bridge.bridge-nf-call-arptables=0
-      - name: Run every lab for real
+      - name: Run documented installers
+        run: |
+          sudo bash scripts/mission-act1-labs.sh lab01 install
+          sudo bash scripts/mission-layer2-capstone.sh install
+      - name: Run every documented learner command for real
         run: sudo bash tests/smoke.sh
       - name: Capture failure state
         if: failure()
