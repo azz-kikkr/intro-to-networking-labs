@@ -4,6 +4,8 @@
 **Time:** 75 minutes<br>
 **Question:** Can you explain and repair a redundant, VLAN-aware four-switch fabric from evidence?
 
+Complete the [Layer 2 capstone readiness primer](capstone-readiness.md) before you begin. You should be able to predict FDB flooding, VLAN membership and the active STP path.
+
 ## Topology
 
 ```text
