@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 LAB="Mission Tech Lab 06"
-VERSION="1.1.3"
+VERSION="1.1.4"
 STATE_DIR="/run/mls1-lab06"
 SCENARIO_FILE="$STATE_DIR/scenario"
 RESULTS_FILE="$STATE_DIR/results-dir"
@@ -392,13 +392,18 @@ scapy_send(){
   local ns="$1" dst="$2" payload="$3"
   ip netns exec "$ns" python3 - "$dst" "$payload" <<'PY'
 import sys
-from scapy.all import Ether, Raw, sendp
-sendp(Ether(dst=sys.argv[1])/Raw(load=sys.argv[2].encode()), iface="eth0", count=1, verbose=False)
+from scapy.all import Ether, IP, UDP, Raw, sendp
+dst_mac = sys.argv[1]
+is_broadcast = dst_mac == "ff:ff:ff:ff:ff:ff"
+dst_ip = "10.110.3.255" if is_broadcast else "10.110.3.254"
+dst_port = 49006 if is_broadcast else 49005
+frame = Ether(dst=dst_mac)/IP(src="10.110.3.11", dst=dst_ip)/UDP(sport=49152, dport=dst_port)/Raw(load=sys.argv[2].encode())
+sendp(frame, iface="eth0", count=3, inter=0.1, verbose=False)
 PY
 }
 demo_unknown(){
   need_root; require_clean; local dir pid; dir="$(results_dir)"
-  ip netns exec "$NS_C" timeout 6 tcpdump -U -ni eth0 -c 1 -w "$dir/05-unknown-unicast.pcap" 'ether dst 02:00:00:de:ad:03' >"$dir/05-unknown-unicast.log" 2>&1 & pid=$!
+  ip netns exec "$NS_C" timeout 6 tcpdump -U -ni eth0 -c 1 -w "$dir/05-unknown-unicast.pcap" 'ether dst 02:00:00:de:ad:03 and udp dst port 49005' >"$dir/05-unknown-unicast.log" 2>&1 & pid=$!
   printf '%s\n' "$pid" >"$STATE_DIR/capture.pid"
   wait_for "unknown-unicast capture startup" 10 capture_ready "$dir/05-unknown-unicast.log"
   scapy_send "$NS_A" 02:00:00:de:ad:03 MISSION-UNKNOWN
@@ -410,8 +415,8 @@ demo_unknown(){
 }
 demo_broadcast(){
   need_root; require_clean; local dir pid_c pid_app; dir="$(results_dir)"
-  ip netns exec "$NS_C" timeout 6 tcpdump -U -ni eth0 -c 1 -w "$dir/06-broadcast-vlan110.pcap" ether broadcast >"$dir/06-broadcast-vlan110.log" 2>&1 & pid_c=$!
-  ip netns exec "$NS_APP" timeout 4 tcpdump -U -ni eth0 -c 1 -w "$dir/06-broadcast-vlan120.pcap" ether broadcast >"$dir/06-broadcast-vlan120.log" 2>&1 & pid_app=$!
+  ip netns exec "$NS_C" timeout 6 tcpdump -U -ni eth0 -c 1 -w "$dir/06-broadcast-vlan110.pcap" 'ether broadcast and udp dst port 49006' >"$dir/06-broadcast-vlan110.log" 2>&1 & pid_c=$!
+  ip netns exec "$NS_APP" timeout 4 tcpdump -U -ni eth0 -c 1 -w "$dir/06-broadcast-vlan120.pcap" 'ether broadcast and udp dst port 49006' >"$dir/06-broadcast-vlan120.log" 2>&1 & pid_app=$!
   printf '%s\n' "$pid_c" >"$STATE_DIR/capture-c.pid"; printf '%s\n' "$pid_app" >"$STATE_DIR/capture-app.pid"
   wait_for "VLAN 110 capture startup" 10 capture_ready "$dir/06-broadcast-vlan110.log"
   wait_for "VLAN 120 capture startup" 10 capture_ready "$dir/06-broadcast-vlan120.log"

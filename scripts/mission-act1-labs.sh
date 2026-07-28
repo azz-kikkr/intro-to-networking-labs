@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 LAB_SUITE="Mission Tech Act 1 Labs"
-VERSION="1.1.3"
+VERSION="1.1.4"
 STATE_ROOT="/run/mls1-act1"
 RESULTS_ROOT="${PWD}/results"
 CAPTURE_PID=""
@@ -307,13 +307,13 @@ build_lab04(){
 }
 verify_lab04(){ exists_link mls1-l04-br || die "Run lab04 build first."; bridge link show master mls1-l04-br; bridge fdb show br mls1-l04-br; ok "Bridge ports and FDB inspected"; }
 broadcast_lab04(){ ip netns exec mls1-l04-a ping -b -c 1 -W 1 198.51.100.255 >/dev/null 2>&1 || true; }
-unknown_lab04(){ ip netns exec mls1-l04-a python3 -c "import socket; s=socket.socket(socket.AF_PACKET,socket.SOCK_RAW); s.bind(('eth0',0)); s.send(bytes.fromhex('02000004ffff02000004001088b5')+b'MISSION-L2-UNKNOWN')"; }
+unknown_lab04(){ ip netns exec mls1-l04-a python3 -c "import socket,time; s=socket.socket(socket.AF_PACKET,socket.SOCK_RAW); s.bind(('eth0',0)); frame=bytes.fromhex('02000004ffff02000004001088b5')+b'MISSION-L2-UNKNOWN'; [s.send(frame) or time.sleep(0.1) for _ in range(3)]"; }
 capture_lab04(){
   local dir; dir="$(new_result lab04)"
   ip -n mls1-l04-a neigh flush dev eth0 >/dev/null 2>&1 || true
   ip -n mls1-l04-b neigh flush dev eth0 >/dev/null 2>&1 || true
   fdb_flush_bridge mls1-l04-br
-  timeout 7 ip netns exec mls1-l04-witness tcpdump -U -eni eth0 -c 12 -w "$dir/ethernet-frames.pcap" >"$dir/tcpdump.log" 2>&1 & CAPTURE_PID=$!
+  timeout 7 ip netns exec mls1-l04-witness tcpdump -U -eni eth0 -c 32 -w "$dir/ethernet-frames.pcap" '(arp or icmp) or (ether proto 0x88b5)' >"$dir/tcpdump.log" 2>&1 & CAPTURE_PID=$!
   wait_capture "$dir/tcpdump.log"
   ip netns exec mls1-l04-a ping -c 2 -W 1 198.51.100.20 >/dev/null; broadcast_lab04; unknown_lab04; wait "$CAPTURE_PID" || true
   bridge fdb show br mls1-l04-br >"$dir/fdb.txt"; tcpdump -nn -e -XX -r "$dir/ethernet-frames.pcap" >"$dir/frames.txt" 2>/dev/null

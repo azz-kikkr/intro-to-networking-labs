@@ -58,6 +58,8 @@ sudo ./scripts/mission-layer2-capstone.sh doctor
 | 5 | [ARP Resolution](docs/lab-05-arp-resolution.md) | 30 min | A request and matching reply create an IP-to-MAC mapping |
 | 6 | [Layer 2 Capstone](docs/lab-06-layer2-capstone.md) | 90 to 120 min | VLAN, FDB and STP evidence explain and repair a campus fabric |
 
+Before Lab 06, complete the [Layer 2 capstone readiness primer](docs/capstone-readiness.md) covering FDB learning, VLAN access and trunk behavior, PVIDs, STP root selection, path cost and failover.
+
 ## Evidence contract
 
 Every lab separates three questions:
