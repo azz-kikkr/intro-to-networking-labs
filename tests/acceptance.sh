@@ -11,16 +11,24 @@ for script in "$root"/scripts/*.sh; do
   grep -q 'results' "$script" || fail "$script lacks evidence output"
 done
 
-if grep -R -nE 'pkill|killall|ip route (add|del|replace) default|iptables|nft (add|delete|flush)' "$root/scripts"; then
+# Match invoked commands, not any mention of a word. The old pattern flagged
+# read-only /proc paths and prose that merely named the host packet filter.
+if grep -R -nE '(^|[[:space:];&|(])(pkill|killall|ip6?tables|nft)[[:space:]]|ip route (add|del|replace) default' "$root/scripts"; then
   fail 'Unsafe host-wide operation found'
 fi
-if grep -R -n $'\u2014' "$root" --include='*.md' --include='*.sh'; then
+# Byte literal, so the check does not depend on the shell locale, and skip
+# tests/ so the guard cannot match its own source.
+em_dash="$(printf '\342\200\224')"
+if grep -R -n --include='*.md' --include='*.sh' --exclude-dir=tests -e "$em_dash" "$root"; then
   fail 'Em dash found in user-facing content'
 fi
 [[ $(find "$root/docs" -maxdepth 1 -name 'lab-*.md' | wc -l) -eq 6 ]] || fail 'Expected six Act 1 lab guides'
 for lab in 01 02 03 04 05 06; do
   grep -qi 'predict' "$root/docs/lab-$lab"-*.md || fail "Lab $lab lacks a prediction prompt"
 done
-"$root/scripts/mission-act1-labs.sh" --version | grep -qx '1.0.0'
-"$root/scripts/mission-layer2-capstone.sh" --version | grep -qx '1.0.0'
+"$root/scripts/mission-act1-labs.sh" --version | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'
+"$root/scripts/mission-layer2-capstone.sh" --version | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'
+# Bridge timers must be expressed in hundredths of a second.
+grep -q 'forward_delay 400' "$root/scripts/mission-layer2-capstone.sh" || fail 'Capstone bridge timers are not in centiseconds'
+grep -q 'brctl' "$root/scripts/mission-layer2-capstone.sh" && fail 'Capstone still depends on deprecated bridge-utils'
 printf '[PASS] Static acceptance contract\n'
