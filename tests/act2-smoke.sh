@@ -34,7 +34,7 @@ ok "All 6 checks passed"
 # Evidence collection
 "$runner" evidence lab01 || fail "Evidence collection failed"
 # Find the most recent results directory
-latest="$(ls -td "$root"/results/*act2-lab01* 2>/dev/null | head -1)" || true
+latest="$(find "$root/results" -maxdepth 1 -type d -name '*act2-lab01*' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)" || true
 [[ -d "$latest" ]] || fail "No results directory created"
 [[ -f "$latest/manifest.txt" ]] || fail "No manifest.txt in evidence"
 [[ -f "$latest/r1-bgp-summary.txt" ]] || fail "No r1-bgp-summary.txt in evidence"
