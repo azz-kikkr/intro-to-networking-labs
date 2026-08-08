@@ -1,0 +1,38 @@
+[
+  {
+    "type": "container_running",
+    "router": "r1",
+    "description": "Router r1 is running"
+  },
+  {
+    "type": "container_running",
+    "router": "r2",
+    "description": "Router r2 is running"
+  },
+  {
+    "type": "bgp_session",
+    "router": "r1",
+    "peer": "10.1.12.3",
+    "description": "r1 has established BGP session with r2 (10.1.12.3)"
+  },
+  {
+    "type": "bgp_session",
+    "router": "r2",
+    "peer": "10.1.12.2",
+    "description": "r2 has established BGP session with r1 (10.1.12.2)"
+  },
+  {
+    "type": "prefix_received",
+    "router": "r1",
+    "peer": "10.1.12.3",
+    "prefix": "192.168.2.0/24",
+    "description": "r1 has learned 192.168.2.0/24 from r2"
+  },
+  {
+    "type": "prefix_received",
+    "router": "r2",
+    "peer": "10.1.12.2",
+    "prefix": "192.168.1.0/24",
+    "description": "r2 has learned 192.168.1.0/24 from r1"
+  }
+]
