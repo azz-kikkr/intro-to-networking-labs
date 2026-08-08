@@ -1,0 +1,32 @@
+services:
+  r1:
+    image: quay.io/frrouting/frr:10.3.1
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    volumes:
+      - ./r1/frr.conf:/etc/frr/frr.conf:ro
+      - ./r1/daemons:/etc/frr/daemons:ro
+    networks:
+      link:
+        ipv4_address: 10.1.12.2
+
+  r2:
+    image: quay.io/frrouting/frr:10.3.1
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    volumes:
+      - ./r2/frr.conf:/etc/frr/frr.conf:ro
+      - ./r2/daemons:/etc/frr/daemons:ro
+    networks:
+      link:
+        ipv4_address: 10.1.12.3
+
+networks:
+  link:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.1.12.0/28
+          gateway: 10.1.12.1

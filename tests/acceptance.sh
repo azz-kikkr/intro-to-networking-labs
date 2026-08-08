@@ -22,10 +22,11 @@ em_dash="$(printf '\342\200\224')"
 if grep -R -n --include='*.md' --include='*.sh' --exclude-dir=tests -e "$em_dash" "$root"; then
   fail 'Em dash found in user-facing content'
 fi
-[[ $(find "$root/docs" -maxdepth 1 -name 'lab-*.md' | wc -l) -eq 6 ]] || fail 'Expected six Act 1 lab guides'
+[[ $(find "$root/docs" -maxdepth 1 -name 'lab-*.md' | wc -l) -eq 7 ]] || fail 'Expected seven lab guides (six Act 1 + one Act 2)'
 for lab in 01 02 03 04 05 06; do
   grep -qi 'predict' "$root/docs/lab-$lab"-*.md || fail "Lab $lab lacks a prediction prompt"
 done
+grep -qi 'predict' "$root/docs/lab-07-first-ebgp-session.md" || fail "Lab 07 lacks a prediction prompt"
 release_version="$(cat "$root/VERSION")"
 [[ "$("$root/scripts/mission-act1-labs.sh" --version)" == "$release_version" ]] || fail 'Act 1 runner version does not match VERSION'
 [[ "$("$root/scripts/mission-layer2-capstone.sh" --version)" == "$release_version" ]] || fail 'Capstone runner version does not match VERSION'
