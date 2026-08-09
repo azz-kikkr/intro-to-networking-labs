@@ -6,6 +6,8 @@
 
 Predict the neighbor-table state before traffic, the request destination MAC, and the reply destination MAC.
 
+![Lab 05 Topology](assets/lab-05-topology.svg)
+
 ```bash
 sudo ./scripts/mission-act1-labs.sh lab05 build
 sudo ./scripts/mission-act1-labs.sh lab05 verify

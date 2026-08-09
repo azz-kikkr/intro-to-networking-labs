@@ -6,6 +6,8 @@
 
 ## Topology
 
+![Lab 04 Topology](assets/lab-04-topology.svg)
+
 ```text
 sender -- mls1 bridge -- receiver
                  |

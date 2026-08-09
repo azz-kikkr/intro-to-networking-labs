@@ -6,6 +6,8 @@
 
 ## Topology
 
+![Lab 02 Topology](assets/lab-02-topology.svg)
+
 ```text
 192.0.2.10/26 -- mls1 bridge -- 192.0.2.20/26
 ```

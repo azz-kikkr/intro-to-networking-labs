@@ -6,6 +6,8 @@
 
 ## Topology
 
+![Lab 01 Topology](assets/lab-01-topology.svg)
+
 ```text
 client namespace -- veth -- mls1 bridge -- veth -- web namespace:8080
 ```

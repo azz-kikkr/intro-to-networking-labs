@@ -8,6 +8,8 @@ Complete the [Layer 2 capstone readiness primer](capstone-readiness.md) before y
 
 ## Topology
 
+![Lab 06 Topology](assets/lab-06-topology.svg)
+
 ```text
             Core
            /    \

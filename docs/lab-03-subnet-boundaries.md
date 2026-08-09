@@ -6,6 +6,8 @@
 
 ## Topology
 
+![Lab 03 Topology](assets/lab-03-topology.svg)
+
 ```text
 left /26 -- router namespace -- right /26
 ```
