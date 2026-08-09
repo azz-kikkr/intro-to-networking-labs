@@ -36,7 +36,10 @@ Pull the FRR image once (about 200 MB):
 
 ![Lab 07 Topology](assets/lab-07-topology.png)
 
-Two FRR routers run inside Docker containers connected by a bridge network. Each router belongs to a different Autonomous System and advertises one prefix via eBGP. The Docker Compose project uses the `mls1-bgp-lab01` prefix so all resources are scoped and removable with one command.
+- **r1** runs in AS 65001, advertises 192.168.1.0/24, and peers with r2 at 10.1.12.3.
+- **r2** runs in AS 65002, advertises 192.168.2.0/24, and peers with r1 at 10.1.12.2.
+- Both containers sit on a single Docker bridge network (10.1.12.0/28).
+- The Docker Compose project uses the `mls1-bgp-lab01` prefix so all resources are scoped and removable with one command.
 
 ## Concepts
 
@@ -101,7 +104,6 @@ You are now inside the FRR `vtysh` shell. Run these commands and record the outp
 ```text
 show bgp summary
 show ip bgp
-show ip bgp neighbors 10.1.12.3 received-routes
 ```
 
 Key observations on r1:
@@ -109,8 +111,8 @@ Key observations on r1:
 | Field | Expected value |
 |-------|----------------|
 | State/PfxRcd for 10.1.12.3 | 1 (session is Established, one prefix received) |
-| BGP table entry for 192.168.1.0/24 | Next hop 0.0.0.0, locally originated |
-| BGP table entry for 192.168.2.0/24 | Next hop 10.1.12.3, path 65002 i |
+| BGP table entry for 192.168.1.0/24 | Next hop 0.0.0.0, weight 32768, locally originated |
+| BGP table entry for 192.168.2.0/24 | Next hop 10.1.12.3, AS path "65002 i" |
 
 Type `exit` to leave vtysh. Then connect to r2 and repeat:
 
@@ -121,7 +123,6 @@ Type `exit` to leave vtysh. Then connect to r2 and repeat:
 ```text
 show bgp summary
 show ip bgp
-show ip bgp neighbors 10.1.12.2 received-routes
 ```
 
 r2 is the mirror: it sees 192.168.1.0/24 learned from AS 65001 with next hop 10.1.12.2.
@@ -146,9 +147,9 @@ This saves timestamped files under `results/`:
 
 | Question | Where to look |
 |----------|---------------|
-| What did the router report? | `show bgp summary` shows session state and prefix count |
-| What state does the routing table expose? | `show ip bgp` shows the RIB with next hops and AS paths |
-| What proves the prefix was learned from the peer? | `show ip bgp` entries with a non-local peerId and AS path confirm the route crossed an AS boundary |
+| What did the router report? | `show bgp summary` shows session state and prefix count. |
+| What state does the routing table expose? | `show ip bgp` shows the full RIB with next hops, weights and AS paths. |
+| What proves the prefix was learned from the peer? | A BGP table entry with a remote next hop and an AS path containing the peer's AS number. |
 
 ## Explain
 
@@ -156,11 +157,11 @@ After reviewing the evidence:
 
 1. Why does 192.168.1.0/24 on r1 have next hop 0.0.0.0 and weight 32768?
 2. Why does 192.168.2.0/24 on r1 show AS path "65002 i"?
-3. What would happen if you changed r2's `remote-as` from 65001 to 65001**1** (a typo)?
+3. What would happen if you changed r2's `remote-as` to a wrong AS number?
 
 ## Done when
 
-You can cite the BGP summary showing Established state, point to the AS path proving the route crossed an AS boundary, and explain that this evidence proves only this isolated lab session.
+You can cite the BGP summary showing Established state, point to the AS path proving the route crossed an AS boundary, and explain what this isolated lab session can and cannot prove.
 
 ## Cleanup
 
@@ -168,7 +169,7 @@ You can cite the BGP summary showing Established state, point to the AS path pro
 ./scripts/mission-act2-bgp.sh destroy lab01
 ```
 
-This removes both containers and the Docker bridge network.
+This removes both containers and the Docker bridge network. Your evidence in `results/` is preserved.
 
 ## Study links
 
