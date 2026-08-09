@@ -34,7 +34,7 @@ Pull the FRR image once (about 200 MB):
 
 ## Topology
 
-![Lab 07 Topology](assets/lab-07-topology.png)
+![Lab 07 Topology](assets/lab-07-topology.svg)
 
 - **r1** runs in AS 65001, advertises 192.168.1.0/24, and peers with r2 at 10.1.12.3.
 - **r2** runs in AS 65002, advertises 192.168.2.0/24, and peers with r1 at 10.1.12.2.

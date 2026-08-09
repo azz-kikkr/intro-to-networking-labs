@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600">
+  <rect width="1000" height="600" fill="#0c0a1c"/>
+
+  <!-- Title -->
+  <text x="30" y="32" fill="#ffffff" font-family="monospace" font-size="16" font-weight="bold">Lab 07: Your First eBGP Session</text>
+
+  <!-- Host boundary -->
+  <rect x="20" y="50" width="960" height="530" rx="12" ry="12" fill="none" stroke="#64b4dc" stroke-width="2"/>
+  <text x="40" y="72" fill="#64b4dc" font-family="monospace" font-size="11">Your Machine (Linux / macOS / Windows WSL2)</text>
+
+  <!-- Docker Engine boundary -->
+  <rect x="45" y="85" width="910" height="460" rx="10" ry="10" fill="rgba(14,12,32,0.6)" stroke="#38bdf8" stroke-width="1"/>
+  <text x="65" y="105" fill="#38bdf8" font-family="monospace" font-size="12">Docker Engine</text>
+
+  <!-- Router 1 card -->
+  <rect x="70" y="125" width="370" height="270" rx="10" ry="10" fill="rgba(167,139,250,0.06)" stroke="#a78bfa" stroke-width="2"/>
+  <text x="90" y="152" fill="#a78bfa" font-family="monospace" font-size="16" font-weight="bold">mls1-bgp-r1</text>
+  <text x="90" y="172" fill="#9590a8" font-family="monospace" font-size="10">FRR 10.3.1 Container</text>
+  <text x="90" y="202" fill="#4ade80" font-family="monospace" font-size="13">AS 65001</text>
+  <text x="90" y="228" fill="#f0ecfc" font-family="monospace" font-size="12">router-id   10.1.12.2</text>
+  <text x="90" y="252" fill="#f0ecfc" font-family="monospace" font-size="12">neighbor    10.1.12.3</text>
+  <text x="90" y="272" fill="#9590a8" font-family="monospace" font-size="10">            remote-as 65002</text>
+  <text x="90" y="298" fill="#f0ecfc" font-family="monospace" font-size="12">network     192.168.1.0/24</text>
+  <line x1="90" y1="320" x2="420" y2="320" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
+  <text x="90" y="340" fill="#a78bfa" font-family="monospace" font-size="10">Advertises  192.168.1.0/24</text>
+  <text x="90" y="358" fill="#93c572" font-family="monospace" font-size="10">Learns      192.168.2.0/24 via 10.1.12.3</text>
+  <text x="90" y="380" fill="#9590a8" font-family="monospace" font-size="10">eth0: 10.1.12.2/28</text>
+
+  <!-- Router 2 card -->
+  <rect x="560" y="125" width="370" height="270" rx="10" ry="10" fill="rgba(251,146,60,0.06)" stroke="#fb923c" stroke-width="2"/>
+  <text x="580" y="152" fill="#fb923c" font-family="monospace" font-size="16" font-weight="bold">mls1-bgp-r2</text>
+  <text x="580" y="172" fill="#9590a8" font-family="monospace" font-size="10">FRR 10.3.1 Container</text>
+  <text x="580" y="202" fill="#4ade80" font-family="monospace" font-size="13">AS 65002</text>
+  <text x="580" y="228" fill="#f0ecfc" font-family="monospace" font-size="12">router-id   10.1.12.3</text>
+  <text x="580" y="252" fill="#f0ecfc" font-family="monospace" font-size="12">neighbor    10.1.12.2</text>
+  <text x="580" y="272" fill="#9590a8" font-family="monospace" font-size="10">            remote-as 65001</text>
+  <text x="580" y="298" fill="#f0ecfc" font-family="monospace" font-size="12">network     192.168.2.0/24</text>
+  <line x1="580" y1="320" x2="910" y2="320" stroke="rgba(251,146,60,0.3)" stroke-width="1"/>
+  <text x="580" y="340" fill="#fb923c" font-family="monospace" font-size="10">Advertises  192.168.2.0/24</text>
+  <text x="580" y="358" fill="#93c572" font-family="monospace" font-size="10">Learns      192.168.1.0/24 via 10.1.12.2</text>
+  <text x="580" y="380" fill="#9590a8" font-family="monospace" font-size="10">eth0: 10.1.12.3/28</text>
+
+  <!-- eBGP arrow between routers -->
+  <line x1="440" y1="195" x2="560" y2="195" stroke="#facc15" stroke-width="3"/>
+  <polygon points="557,195 547,189 547,201" fill="#facc15"/>
+  <polygon points="443,195 453,189 453,201" fill="#facc15"/>
+  <text x="468" y="182" fill="#facc15" font-family="monospace" font-size="11">eBGP (TCP 179)</text>
+
+  <!-- Bridge network -->
+  <rect x="150" y="430" width="700" height="50" rx="8" ry="8" fill="rgba(147,197,114,0.06)" stroke="#93c572" stroke-width="2"/>
+  <text x="420" y="455" fill="#93c572" font-family="monospace" font-size="12" text-anchor="middle">mls1-bgp-lab01_link</text>
+  <text x="420" y="473" fill="#9590a8" font-family="monospace" font-size="10" text-anchor="middle">Docker bridge   10.1.12.0/28</text>
+
+  <!-- Vertical links from routers to bridge -->
+  <line x1="255" y1="395" x2="255" y2="430" stroke="#a78bfa" stroke-width="2"/>
+  <circle cx="255" cy="430" r="4" fill="#a78bfa"/>
+  <line x1="745" y1="395" x2="745" y2="430" stroke="#fb923c" stroke-width="2"/>
+  <circle cx="745" cy="430" r="4" fill="#fb923c"/>
+
+  <!-- CLI commands row -->
+  <text x="60" y="520" fill="#9590a8" font-family="monospace" font-size="10">./scripts/mission-act2-bgp.sh</text>
+  <text x="60" y="540" fill="#64b4dc" font-family="monospace" font-size="10">doctor</text>
+  <text x="140" y="540" fill="#38bdf8" font-family="monospace" font-size="10">prep</text>
+  <text x="210" y="540" fill="#a78bfa" font-family="monospace" font-size="10">build lab01</text>
+  <text x="340" y="540" fill="#93c572" font-family="monospace" font-size="10">verify lab01</text>
+  <text x="490" y="540" fill="#fb923c" font-family="monospace" font-size="10">connect r1</text>
+  <text x="630" y="540" fill="#facc15" font-family="monospace" font-size="10">evidence lab01</text>
+  <text x="800" y="540" fill="#f87171" font-family="monospace" font-size="10">destroy lab01</text>
+</svg>
