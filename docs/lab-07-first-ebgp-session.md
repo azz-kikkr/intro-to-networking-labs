@@ -34,55 +34,7 @@ Pull the FRR image once (about 200 MB):
 
 ## Topology
 
-```text
-+-----------------------------------------------------------------------+
-|  YOUR HOST (Linux / macOS / Windows with WSL2)                        |
-|                                                                       |
-|  +-----------------------------+                                      |
-|  |  Docker Engine              |                                      |
-|  |                             |                                      |
-|  |  docker compose -p mls1-bgp-lab01                                  |
-|  |                             |                                      |
-|  |  +--- mls1-bgp-lab01-r1-1 ---+    +--- mls1-bgp-lab01-r2-1 ---+  |
-|  |  |                            |    |                            |  |
-|  |  |  FRR 10.3.1 container      |    |  FRR 10.3.1 container      |  |
-|  |  |  AS 65001                  |    |  AS 65002                  |  |
-|  |  |  router-id 10.1.12.2      |    |  router-id 10.1.12.3      |  |
-|  |  |                            |    |                            |  |
-|  |  |  bgpd: neighbor 10.1.12.3  |    |  bgpd: neighbor 10.1.12.2  |  |
-|  |  |        remote-as 65002     |    |        remote-as 65001     |  |
-|  |  |                            |    |                            |  |
-|  |  |  network 192.168.1.0/24   |    |  network 192.168.2.0/24   |  |
-|  |  |                            |    |                            |  |
-|  |  |  eth0: 10.1.12.2/28       |    |  eth0: 10.1.12.3/28       |  |
-|  |  +----------+-----------------+    +----------+-----------------+  |
-|  |             |                                  |                   |
-|  |             +---- mls1-bgp-lab01_link ---------+                   |
-|  |                  (Docker bridge network)                           |
-|  |                   subnet 10.1.12.0/28                              |
-|  |                   gateway 10.1.12.1                                |
-|  +-----------------------------+--------------------------------------+
-|                                                                       |
-|  ./scripts/mission-act2-bgp.sh build lab01                            |
-|  ./scripts/mission-act2-bgp.sh connect r1   --> docker exec vtysh     |
-|  ./scripts/mission-act2-bgp.sh verify lab01 --> docker exec show bgp  |
-|  ./scripts/mission-act2-bgp.sh destroy lab01 --> docker compose down  |
-+-----------------------------------------------------------------------+
-```
-
-```text
-                  eBGP session (TCP 179)
-         r1 (AS 65001) <---------------------> r2 (AS 65002)
-         10.1.12.2                              10.1.12.3
-
-         Announces:                             Announces:
-         192.168.1.0/24                         192.168.2.0/24
-
-         Learns from r2:                        Learns from r1:
-         192.168.2.0/24                         192.168.1.0/24
-         next-hop 10.1.12.3                     next-hop 10.1.12.2
-         AS path: 65002 i                       AS path: 65001 i
-```
+![Lab 07 Topology](assets/lab-07-topology.png)
 
 Two FRR routers run inside Docker containers connected by a bridge network. Each router belongs to a different Autonomous System and advertises one prefix via eBGP. The Docker Compose project uses the `mls1-bgp-lab01` prefix so all resources are scoped and removable with one command.
 
