@@ -2,6 +2,27 @@
 
 A packet capture is evidence only when you can explain where it was taken, what traffic generated it and which field proves the claim.
 
+## How one frame nests every layer below
+
+```mermaid
+flowchart TB
+    subgraph Frame["Ethernet frame"]
+        direction TB
+        EthHdr["Ethernet II header<br/>dst MAC · src MAC · EtherType"]
+        subgraph Packet["IPv4 packet"]
+            direction TB
+            IPHdr["IPv4 header<br/>src IP · dst IP · TTL · protocol"]
+            subgraph Segment["TCP segment"]
+                direction TB
+                TCPHdr["TCP header<br/>src port · dst port · SYN/ACK flags · seq/ack"]
+                HTTP["HTTP request or response"]
+            end
+        end
+    end
+```
+
+Read a capture from the outside in: the Ethernet header tells you which two NICs exchanged the frame, the IPv4 header tells you which two hosts the packet claims to connect end to end, and the TCP header tells you which two ports and which side of the handshake you are looking at. HTTP only exists once all three lower headers are already valid.
+
 ## Ethernet
 
 Use `tcpdump -e` or expand **Ethernet II** in Wireshark. Record the destination MAC, source MAC, EtherType and whether the destination is unicast, multicast or broadcast.
